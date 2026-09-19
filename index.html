@@ -59,6 +59,23 @@
 
   #transcript { min-height: 90px; max-height: 180px; overflow-y: auto; white-space: pre-wrap; font-size: 15px; }
   #transcript .interim { color: var(--muted); }
+
+  details.explain summary { cursor: pointer; font-weight: 600; }
+  .explain a { color: var(--accent); }
+  .explain h3 { font-size: 15px; margin: 18px 0 6px; }
+  .explain p, .explain li { font-size: 14px; }
+  .explain ol, .explain ul { padding-left: 20px; margin: 6px 0; }
+  .explain pre { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; overflow-x: auto; font-size: 12.5px; line-height: 1.45; margin: 8px 0; }
+  .explain code { font-size: 13px; }
+  .levels { width: 100%; border-collapse: collapse; font-size: 13px; margin: 8px 0; }
+  .levels th, .levels td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  .levels th { color: var(--muted); font-weight: 500; }
+  .dist { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+  .dist .pt { font-size: 14px; font-weight: 600; }
+  .dist .bars { display: grid; grid-template-columns: 22px 1fr 42px; gap: 2px 8px; align-items: center; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .dist .bar { height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; }
+  .dist .bar span { display: block; height: 100%; background: var(--accent); }
+  .dist .sum { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
   #transcript:empty::before { content: attr(data-placeholder); color: var(--muted); }
   .stats { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
   .live { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--danger); margin-right: 6px; animation: pulse 1.2s infinite; }
@@ -134,6 +151,70 @@ Introduce the first performer</textarea>
       <p class="error hidden" id="error"></p>
     </div>
   </section>
+
+  <details class="panel explain" id="explain">
+    <summary>How Jev scores each point</summary>
+
+    <p>
+      Jev is a model from <a href="https://typesafe.ai">TypeSafe</a> that doesn't write text. It answers typed
+      questions with probabilities. This page uses its <b>Score</b> question type, which rates something on levels
+      you describe in plain words.
+    </p>
+
+    <h3>1. What is sent</h3>
+    <p>About every half second, one request goes to Jev. It holds what you have said so far (the <i>state</i>) and one
+      Score question per talking point that is still open. All the questions are answered in parallel:</p>
+<pre>{
+  "state": { "transcript": "Hi all, I'm your host… exits are at the back" },
+  "questions": {
+    "p2": {
+      "type": "score",
+      "instructions": "How much has the speaker covered this talking point: \"Where the emergency exits are\"?",
+      "criteria": [
+        "No mention of this topic at all",
+        "Topic is mentioned but not expanded upon at all",
+        "Topic is discussed",
+        "Topic is thoroughly discussed"
+      ]
+    },
+    "p3": { … one per open point … }
+  }
+}</pre>
+    <p>The <i>criteria</i> are the levels, from lowest to highest. They define in words what "covered" means,
+      so changing their wording changes what Jev looks for.</p>
+
+    <h3>2. What comes back</h3>
+    <p>For each point, Jev gives the probability that each level describes the transcript. The probabilities add up to 100%:</p>
+    <table class="levels">
+      <tr><th>Level</th><th>Meaning</th><th>Probability</th></tr>
+      <tr><td>0</td><td>No mention of this topic at all</td><td>0%</td></tr>
+      <tr><td>1</td><td>Mentioned but not expanded upon</td><td>12%</td></tr>
+      <tr><td>2</td><td>Discussed</td><td>83%</td></tr>
+      <tr><td>3</td><td>Thoroughly discussed</td><td>5%</td></tr>
+    </table>
+    <p>The <b>score</b> is the probability-weighted average of the levels, so it can fall between them:</p>
+<pre>score = 0×0.00 + 1×0.12 + 2×0.83 + 3×0.05 = 1.93</pre>
+    <p><b>Confidence</b> (83% here) measures how much the probability is concentrated on one level. It does not say
+      whether the point was covered, so this page ignores it.</p>
+
+    <h3>3. What the page does with it</h3>
+    <ul>
+      <li>If a point's score reaches the <b>threshold</b> (1.5 by default, about halfway between "mentioned" and
+        "discussed"), the point is checked off. Move the slider to be stricter or more forgiving.</li>
+      <li>A checked point stays checked and is no longer sent, so later requests get cheaper.</li>
+      <li>Every open point is scored on every request, so you can cover them in any order.</li>
+    </ul>
+    <p>Jev only judges how much each point has been covered. The rule for checking it off is plain code, which is
+      why tuning it needs no retraining: change the threshold or the wording of the levels.</p>
+
+    <h3>Live: Jev's last answer for each point</h3>
+    <p class="note" id="distEmpty">Start talking (or typing) and each point's probabilities will show here.</p>
+    <div class="dist" id="dist"></div>
+
+    <p class="note">Idea and design by Allie at TypeSafe. More in the
+      <a href="https://docs.typesafe.ai/primitives/score">Score docs</a> and on
+      <a href="https://github.com/finetuningsingh/intelliprompter">GitHub</a>.</p>
+  </details>
 </main>
 
 <script type="module">
@@ -217,7 +298,35 @@ Introduce the first performer</textarea>
     update();
   }
 
+  // Shows the four level probabilities behind each score, and the sum that produces it.
+  function renderDist() {
+    const box = $('dist');
+    box.innerHTML = '';
+    const seen = points.filter((p) => state[p.id]?.probabilities);
+    $('distEmpty').classList.toggle('hidden', seen.length > 0);
+    for (const p of seen) {
+      const s = state[p.id], pr = s.probabilities;
+      const el = document.createElement('div');
+      const title = document.createElement('div');
+      title.className = 'pt';
+      title.textContent = (s.done ? '✓ ' : '') + p.text;
+      const bars = document.createElement('div');
+      bars.className = 'bars';
+      for (let lvl = 0; lvl < 4; lvl++) {
+        const v = pr[lvl] ?? 0;
+        bars.insertAdjacentHTML('beforeend', `<span>${lvl}</span><span class="bar"><span style="width:${v * 100}%"></span></span><span>${Math.round(v * 100)}%</span>`);
+      }
+      const sum = document.createElement('div');
+      sum.className = 'sum';
+      sum.textContent = `score = ${[0, 1, 2, 3].map((l) => `${l}×${(pr[l] ?? 0).toFixed(2)}`).join(' + ')} = ${s.score.toFixed(2)}` +
+        (s.score >= threshold() ? `  ≥ ${threshold().toFixed(1)}, checked off` : s.done ? '  (checked by hand)' : `  < ${threshold().toFixed(1)}, still open`);
+      el.append(title, bars, sum);
+      box.append(el);
+    }
+  }
+
   function update() {
+    renderDist();
     const firstOpen = points.find((p) => !state[p.id].done);
     for (const li of $('points').children) {
       const s = state[li.dataset.id];
@@ -263,7 +372,7 @@ Introduce the first performer</textarea>
       for (const p of open) {
         const a = r.scores[p.id], s = state[p.id];
         if (!a || s.done) continue;
-        Object.assign(s, { score: a.score, confidence: a.confidence, seen: true });
+        Object.assign(s, { score: a.score, confidence: a.confidence, probabilities: a.probabilities, seen: true });
         if (a.score >= threshold()) s.done = true;
       }
     } catch (e) {
@@ -308,7 +417,7 @@ Introduce the first performer</textarea>
     if (!points.length) { $('pointsInput').focus(); return; }
     if (recognizer) { recognizer.onend = recognizer.onresult = recognizer.onerror = null; try { recognizer.abort(); } catch {} recognizer = null; }
     try { localStorage.setItem('intelliprompter_points', $('pointsInput').value); } catch {}
-    state = Object.fromEntries(points.map((p) => [p.id, { score: 0, confidence: 0, seen: false, done: false }]));
+    state = Object.fromEntries(points.map((p) => [p.id, { score: 0, confidence: 0, probabilities: null, seen: false, done: false }]));
     finalText = interimText = sentText = '';
     typing = !withMic || !Recognition;
     listening = !typing;

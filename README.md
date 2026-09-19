@@ -52,6 +52,10 @@ level, so it can fall between levels. The code owns the rules:
   changed and no request is already waiting. Only the last 6,000 characters
   are sent.
 
+The page's "How Jev scores each point" section explains Score step by step and
+shows Jev's latest answer for every point: the probability of each level and
+the sum that gives the score.
+
 The shared logic is in [`prompter.js`](prompter.js). Allie used ElevenLabs for
 live transcription; this page uses the browser's built-in speech recognition
 (Chrome, Edge or Safari). "Start without microphone" lets you type or paste
