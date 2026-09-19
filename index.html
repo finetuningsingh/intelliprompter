@@ -77,6 +77,14 @@
   .levels { width: 100%; border-collapse: collapse; font-size: 13px; margin: 8px 0; }
   .levels th, .levels td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--line); vertical-align: middle; }
   .levels th { color: var(--muted); font-weight: 500; }
+  .levels .n { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  @media (max-width: 560px) {
+    /* Each quote gets its own line, with the five numbers in a row beneath it. */
+    .levels, .levels tbody { display: block; }
+    .levels tr { display: grid; grid-template-columns: repeat(5, 1fr); border-bottom: 1px solid var(--line); padding: 4px 0; }
+    .levels tr > :first-child { grid-column: 1 / -1; }
+    .levels th, .levels td { border-bottom: none; }
+  }
   .dist { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
   .dist .pt { font-size: 14px; font-weight: 600; }
   .dist .bars { display: grid; grid-template-columns: 22px 1fr 42px; gap: 2px 8px; align-items: center; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
@@ -190,7 +198,7 @@ Introduce the first performer</textarea>
     <p>About every half second, one request goes to Jev. It holds what you have said so far (the <i>state</i>) and one
       Score question per talking point that is still open. All the questions are answered in parallel:</p>
 <pre>{
-  "state": { "transcript": "Hi all, I'm your host… exits are at the back" },
+  "state": { "transcript": "Hi all, I'm your host tonight. Quick safety note: the emergency exits are at the back…" },
   "questions": {
     "p2": {
       "type": "score",
@@ -209,18 +217,24 @@ Introduce the first performer</textarea>
       so changing their wording changes what Jev looks for.</p>
 
     <h3>2. What comes back</h3>
-    <p>For each point, Jev gives the probability that each level describes the transcript. The probabilities add up to 100%:</p>
+    <p>Jev doesn't pick one level. For each point it gives the probability of each level, adding up to 100%.
+      Here are Jev's real answers for the point "Where the emergency exits are" as the host says more and more.
+      The levels are 0&nbsp;no mention, 1&nbsp;mentioned but not expanded upon, 2&nbsp;discussed, 3&nbsp;thoroughly discussed.</p>
     <table class="levels">
-      <tr><th>Level</th><th>Meaning</th><th>Probability</th></tr>
-      <tr><td>0</td><td>No mention of this topic at all</td><td>0%</td></tr>
-      <tr><td>1</td><td>Mentioned but not expanded upon</td><td>12%</td></tr>
-      <tr><td>2</td><td>Discussed</td><td>83%</td></tr>
-      <tr><td>3</td><td>Thoroughly discussed</td><td>5%</td></tr>
+      <tr><th>What the host has said</th><th class="n">0</th><th class="n">1</th><th class="n">2</th><th class="n">3</th><th class="n">Score</th></tr>
+      <tr><td>"Hi all, I'm your host tonight."</td><td class="n">100%</td><td class="n">0%</td><td class="n">0%</td><td class="n">0%</td><td class="n"><b>0.00</b></td></tr>
+      <tr><td>… "Oh, and there are exits, obviously."</td><td class="n">0%</td><td class="n">100%</td><td class="n">0%</td><td class="n">0%</td><td class="n"><b>1.00</b></td></tr>
+      <tr><td>… "Quick safety note: the emergency exits are at the back of the room, through the double doors."</td><td class="n">0%</td><td class="n">24%</td><td class="n">73%</td><td class="n">3%</td><td class="n"><b>1.79</b></td></tr>
+      <tr><td>… and "there are two more on either side of the stage. If the alarm goes off, leave by the nearest one, don't stop for coats, and meet across the street by the fountain."</td><td class="n">0%</td><td class="n">0%</td><td class="n">27%</td><td class="n">73%</td><td class="n"><b>2.73</b></td></tr>
     </table>
-    <p>The <b>score</b> is the probability-weighted average of the levels, so it can fall between them:</p>
-<pre>score = 0×0.00 + 1×0.12 + 2×0.83 + 3×0.05 = 1.93</pre>
-    <p><b>Confidence</b> (0 to 1) measures how much the probability is concentrated on one level. It does not say
-      whether the point was covered, so this page ignores it.</p>
+    <p>The <b>score</b> is the probability-weighted average of the levels, so it can fall between them. For the
+      third row:</p>
+<pre>score = 0×0.00 + 1×0.24 + 2×0.73 + 3×0.03 = 1.79</pre>
+    <p>At the default threshold of 1.5, the passing mention (1.00) leaves the point open, and the safety note (1.79)
+      checks it off.</p>
+    <p><b>Confidence</b> (0 to 1) measures how much of the probability sits on one level: 1.00 in the first two rows,
+      0.73 in the last two. It does not say whether the point was covered, so this page ignores it.</p>
+    <p class="note">Scored with Jev 1.13 (<code>typesafe/jev-1.13</code> on OpenRouter) on 19 September 2026.</p>
 
     <h3>3. What the page does with it</h3>
     <ul>
