@@ -1,0 +1,12 @@
+{
+  "name": "intelliprompter",
+  "private": true,
+  "type": "module",
+  "description": "A teleprompter of talking points that checks each one off as you cover it, using TypeSafe's Jev",
+  "scripts": {
+    "start": "node server.js",
+    "replay": "node replay.js"
+  },
+  "engines": { "node": ">=18" },
+  "license": "MIT"
+}

@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IntelliPrompter</title>
+<meta name="description" content="A teleprompter of talking points, not a script: speak freely and Jev checks each point off as you cover it, in any order.">
+<style>
+  :root {
+    --bg: #f6f5f1; --panel: #ffffff; --text: #1c1b18; --muted: #6b6960; --line: #e1dfd7;
+    --accent: #2f5bea; --accent-text: #ffffff; --done: #1f7a4a; --next: #fff4d6; --danger: #b3261e;
+    color-scheme: light dark;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #141414; --panel: #1e1e1e; --text: #ececec; --muted: #9a9a9a; --line: #333;
+      --accent: #6b8cff; --accent-text: #0b1020; --done: #5fcf8f; --next: #3a3220; --danger: #ff7b72;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #141414; --panel: #1e1e1e; --text: #ececec; --muted: #9a9a9a; --line: #333;
+    --accent: #6b8cff; --accent-text: #0b1020; --done: #5fcf8f; --next: #3a3220; --danger: #ff7b72;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 820px; margin: 0 auto; padding: 24px 16px 60px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 20px; font-size: 14px; }
+  .sub a { color: inherit; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+  label { display: block; font-size: 14px; color: var(--muted); margin-bottom: 6px; }
+  input[type="password"], textarea {
+    width: 100%; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px;
+  }
+  textarea { resize: vertical; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+  button { font: inherit; border: 1px solid var(--line); background: var(--panel); color: var(--text); border-radius: 8px; padding: 9px 14px; cursor: pointer; }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  button:disabled { opacity: .5; cursor: default; }
+  .note { font-size: 13px; color: var(--muted); margin: 8px 0 0; }
+  .check { display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--muted); }
+  .error { color: var(--danger); font-size: 14px; }
+  .hidden { display: none; }
+  input[type="range"] { width: 160px; accent-color: var(--accent); }
+
+  #points { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  #points li { display: grid; grid-template-columns: 34px 1fr; gap: 4px 12px; align-items: center; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line); cursor: pointer; transition: opacity .3s, background .3s; }
+  #points li .box { grid-row: span 2; width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--muted); display: grid; place-items: center; font-size: 16px; color: transparent; }
+  #points li .text { font-size: clamp(20px, 3.4vw, 30px); line-height: 1.25; font-weight: 600; }
+  #points li .meter { position: relative; height: 6px; border-radius: 3px; background: var(--line); overflow: visible; }
+  #points li .fill { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: 3px; background: var(--accent); transition: width .25s; }
+  #points li .mark { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--text); opacity: .5; }
+  #points li .num { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  #points li.next { background: var(--next); }
+  #points li.done { opacity: .45; }
+  #points li.done .box { border-color: var(--done); background: var(--done); color: var(--bg); }
+  #points li.done .text { text-decoration: line-through; }
+  #points li.done .fill { background: var(--done); }
+
+  #transcript { min-height: 90px; max-height: 180px; overflow-y: auto; white-space: pre-wrap; font-size: 15px; }
+  #transcript .interim { color: var(--muted); }
+  #transcript:empty::before { content: attr(data-placeholder); color: var(--muted); }
+  .stats { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .live { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--danger); margin-right: 6px; animation: pulse 1.2s infinite; }
+  @keyframes pulse { 50% { opacity: .3; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>IntelliPrompter</h1>
+  <p class="sub">
+    A teleprompter of talking points, not a script. Speak in your own words and in any order. About every half
+    second, <a href="https://typesafe.ai/blog/introducing-system-one-models-and-jev">Jev</a> scores each open point
+    on how far you have covered it (0 to 3), and a point is checked off once its score reaches the threshold.
+  </p>
+
+  <section class="panel" id="keyPanel">
+    <label for="key">Your OpenRouter or TypeSafe API key</label>
+    <input id="key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-or-v1-… or a TypeSafe key">
+    <div class="row">
+      <button class="primary" id="saveKey">Use this key</button>
+      <span class="check"><input type="checkbox" id="remember"><label for="remember" style="margin:0">Remember on this device</label></span>
+    </div>
+    <p class="note">
+      An OpenRouter key (it starts with <code>sk-or-</code>) goes from your browser straight to openrouter.ai.
+      A TypeSafe key only works when the page is run locally with <code>npm start</code>, because api.typesafe.ai
+      does not accept calls from browsers; the local server passes them on. Without "remember", the key is kept only
+      until you close this tab. With OpenRouter, a 5-minute talk with 7 points costs at most about $0.04.
+    </p>
+    <p class="error hidden" id="keyError"></p>
+  </section>
+
+  <section class="panel hidden" id="setupPanel">
+    <label for="pointsInput">Talking points, one per line</label>
+    <textarea id="pointsInput" rows="8">Welcome everyone and introduce yourself as the host
+Thank the theater and the staff
+Where the emergency exits are
+Phones on silent, no flash photography
+Tip the performers, and bring cash
+The bar is open during intermission
+Introduce the first performer</textarea>
+    <div class="row">
+      <button class="primary" id="start">Start with microphone</button>
+      <button id="startTyping">Start without microphone</button>
+      <span style="flex:1"></span>
+      <button id="forgetKey">Forget key</button>
+    </div>
+    <p class="note" id="keyNote"></p>
+    <p class="note" id="micNote"></p>
+  </section>
+
+  <section class="hidden" id="stagePanel">
+    <ol id="points"></ol>
+
+    <div class="panel" style="margin-top:16px">
+      <div class="row" style="margin-top:0; justify-content: space-between">
+        <span class="note" style="margin:0" id="status"></span>
+        <div class="row" style="margin-top:0">
+          <label for="threshold" class="check" style="margin:0">Check off at <b id="thresholdOut"></b></label>
+          <input type="range" id="threshold" min="0.5" max="2.5" step="0.1" value="1">
+        </div>
+      </div>
+      <div class="row">
+        <div id="transcript" class="panel" style="margin:0; flex:1" contenteditable="false" data-placeholder="Your words appear here as you speak."></div>
+      </div>
+      <div class="row">
+        <button id="mic">Pause mic</button>
+        <button id="reset">Reset</button>
+        <button id="edit">Edit points</button>
+        <span style="flex:1"></span>
+        <span class="stats" id="stats"></span>
+      </div>
+      <p class="note">Click a point to check or uncheck it yourself. A checked point stays checked and is no longer sent to Jev.</p>
+      <p class="error hidden" id="error"></p>
+    </div>
+  </section>
+</main>
+
+<script type="module">
+  import { scorePoints, parsePoints, makeJev, providerFor, PROVIDERS } from './prompter.js?v=2';
+
+  const TICK_MS = 500;
+  const STORE = 'jev_api_key';
+  const $ = (id) => document.getElementById(id);
+  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  let jev = null, points = [], state = {};
+  let finalText = '', interimText = '', sentText = '', inFlight = false, timer = null;
+  let recognizer = null, listening = false, typing = false;
+  let calls = 0, cost = 0, costKnown = true, lastMs = 0;
+
+  // server.js answers this; on GitHub Pages it 404s, so there is no relay and TypeSafe keys can't be used.
+  const config = await fetch('api/config').then((r) => (r.ok ? r.json() : {})).catch(() => ({}));
+
+  // ---- key ----
+  function useKey(key, provider) {
+    const call = makeJev({
+      provider, key,
+      url: provider === 'typesafe' ? 'api/typesafe' : undefined,
+      headers: provider === 'openrouter' ? { 'HTTP-Referer': location.origin, 'X-Title': 'IntelliPrompter' } : {},
+    });
+    jev = async (...args) => {
+      const t0 = performance.now();
+      try { return await call(...args); } finally { lastMs = Math.round(performance.now() - t0); }
+    };
+    $('keyNote').textContent = key ? `Using your ${PROVIDERS[provider].name} key.` : 'Using the TypeSafe key from the local server\'s .env.';
+    $('forgetKey').classList.toggle('hidden', !key);
+    $('keyPanel').classList.add('hidden');
+    $('setupPanel').classList.remove('hidden');
+  }
+  function keyError(msg) { $('keyError').textContent = msg; $('keyError').classList.toggle('hidden', !msg); }
+  function trySavedKey(k, remember) {
+    const provider = providerFor(k);
+    if (provider === 'typesafe' && !config.relay) {
+      return keyError('TypeSafe keys need the local server, because api.typesafe.ai does not accept calls from browsers. Clone the repo and run npm start, or use an OpenRouter key here.');
+    }
+    keyError('');
+    try {
+      sessionStorage.setItem(STORE, k);
+      if (remember) localStorage.setItem(STORE, k); else localStorage.removeItem(STORE);
+    } catch {}
+    useKey(k, provider);
+  }
+  $('saveKey').onclick = () => { const k = $('key').value.trim(); if (k) trySavedKey(k, $('remember').checked); else $('key').focus(); };
+  $('key').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('saveKey').click(); });
+  $('forgetKey').onclick = () => {
+    jev = null;
+    try { sessionStorage.removeItem(STORE); localStorage.removeItem(STORE); } catch {}
+    $('key').value = '';
+    $('setupPanel').classList.add('hidden');
+    $('keyPanel').classList.remove('hidden');
+  };
+  if (config.serverKey) useKey('', 'typesafe');
+  else try {
+    const remembered = localStorage.getItem(STORE), session = sessionStorage.getItem(STORE);
+    if (remembered) trySavedKey(remembered, true); else if (session) trySavedKey(session, false);
+  } catch {}
+  try { const saved = localStorage.getItem('intelliprompter_points'); if (saved) $('pointsInput').value = saved; } catch {}
+  if (!Recognition) $('micNote').textContent = 'This browser has no built-in speech recognition (Chrome, Edge and Safari do). Use "Start without microphone" and type or paste what you say.';
+
+  // ---- stage ----
+  const threshold = () => Number($('threshold').value);
+  const fullText = () => (finalText + ' ' + interimText).replace(/\s+/g, ' ').trim();
+
+  function renderPoints() {
+    const list = $('points');
+    list.innerHTML = '';
+    for (const p of points) {
+      const li = document.createElement('li');
+      li.dataset.id = p.id;
+      li.innerHTML = `<span class="box">✓</span><span class="text"></span>
+        <span style="display:flex; gap:10px; align-items:center"><span class="meter" style="flex:1"><span class="fill"></span><span class="mark"></span></span><span class="num"></span></span>`;
+      li.querySelector('.text').textContent = p.text;
+      li.onclick = () => { const s = state[p.id]; s.done = !s.done; s.manual = true; update(); };
+      list.append(li);
+    }
+    update();
+  }
+
+  function update() {
+    const firstOpen = points.find((p) => !state[p.id].done);
+    for (const li of $('points').children) {
+      const s = state[li.dataset.id];
+      li.classList.toggle('done', s.done);
+      li.classList.toggle('next', li.dataset.id === firstOpen?.id);
+      li.querySelector('.fill').style.width = `${(s.score / 3) * 100}%`;
+      li.querySelector('.mark').style.left = `${(threshold() / 3) * 100}%`;
+      // Confidence is shown for curiosity only; like Allie's version, check-off ignores it.
+      li.querySelector('.num').textContent = s.seen ? `${s.score.toFixed(2)} / 3 · conf ${Math.round(s.confidence * 100)}%` : '–';
+    }
+    $('thresholdOut').textContent = threshold().toFixed(1);
+    const left = points.filter((p) => !state[p.id].done).length;
+    $('status').innerHTML = (listening ? '<span class="live"></span>Listening · ' : typing ? 'Typing mode · ' : 'Paused · ') + (left ? `${left} of ${points.length} points left` : 'All points covered');
+    $('stats').textContent = `${calls} Jev calls · ${costKnown ? '$' + cost.toFixed(5) : 'billed by TypeSafe'} · last ${lastMs} ms`;
+  }
+  $('threshold').oninput = () => {
+    // Lowering the threshold can check off points already scored above it; raising it never unchecks.
+    for (const p of points) { const s = state[p.id]; if (!s.done && s.seen && s.score >= threshold()) s.done = true; }
+    update();
+  };
+
+  function renderTranscript() {
+    const el = $('transcript');
+    if (typing) return;
+    el.innerHTML = '';
+    el.append(document.createTextNode(finalText));
+    if (interimText) { const span = document.createElement('span'); span.className = 'interim'; span.textContent = ' ' + interimText; el.append(span); }
+    el.scrollTop = el.scrollHeight;
+  }
+
+  // One request at a time, sent only when the transcript has changed; that keeps answers in order.
+  async function tick() {
+    if (inFlight || !jev) return;
+    const text = typing ? $('transcript').innerText.trim() : fullText();
+    if (!text || text === sentText) return;
+    const open = points.filter((p) => !state[p.id].done);
+    if (!open.length) return;
+    inFlight = true; sentText = text;
+    try {
+      const r = await scorePoints(jev, text, open);
+      calls++; if (r.cost == null) costKnown = false; else cost += r.cost;
+      $('error').classList.add('hidden');
+      for (const p of open) {
+        const a = r.scores[p.id], s = state[p.id];
+        if (!a || s.done) continue;
+        Object.assign(s, { score: a.score, confidence: a.confidence, seen: true });
+        if (a.score >= threshold()) s.done = true;
+      }
+    } catch (e) {
+      $('error').textContent = e.message; $('error').classList.remove('hidden');
+      if (/\(401\)/.test(e.message)) { stop(); $('error').textContent += ' Use Edit points, then Forget key, to enter another.'; }
+      sentText = '';
+    } finally {
+      inFlight = false; update();
+    }
+  }
+
+  function startRecognizer() {
+    recognizer = new Recognition();
+    recognizer.continuous = true;
+    recognizer.interimResults = true;
+    recognizer.lang = navigator.language || 'en-US';
+    recognizer.onresult = (e) => {
+      interimText = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const t = e.results[i][0].transcript;
+        if (e.results[i].isFinal) finalText += (finalText ? ' ' : '') + t.trim(); else interimText += t;
+      }
+      renderTranscript();
+    };
+    recognizer.onerror = (e) => {
+      if (e.error === 'no-speech' || e.error === 'aborted') return;
+      $('error').textContent = e.error === 'not-allowed' ? 'Microphone access was blocked. Allow it in the address bar and press Resume mic.' : `Speech recognition error: ${e.error}`;
+      $('error').classList.remove('hidden');
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') listening = false;
+    };
+    // Chrome ends recognition after silence or about a minute; restart while still listening.
+    recognizer.onend = () => {
+      if (interimText) { finalText += (finalText ? ' ' : '') + interimText.trim(); interimText = ''; }
+      if (listening) { try { recognizer.start(); } catch {} }
+      update();
+    };
+    recognizer.start();
+  }
+
+  function begin(withMic) {
+    points = parsePoints($('pointsInput').value);
+    if (!points.length) { $('pointsInput').focus(); return; }
+    if (recognizer) { recognizer.onend = recognizer.onresult = recognizer.onerror = null; try { recognizer.abort(); } catch {} recognizer = null; }
+    try { localStorage.setItem('intelliprompter_points', $('pointsInput').value); } catch {}
+    state = Object.fromEntries(points.map((p) => [p.id, { score: 0, confidence: 0, seen: false, done: false }]));
+    finalText = interimText = sentText = '';
+    typing = !withMic || !Recognition;
+    listening = !typing;
+    $('transcript').contentEditable = typing ? 'plaintext-only' : 'false';
+    $('transcript').dataset.placeholder = typing ? 'Type or paste what you say here.' : 'Your words appear here as you speak.';
+    $('transcript').textContent = '';
+    $('mic').classList.toggle('hidden', typing);
+    $('mic').textContent = 'Pause mic';
+    $('setupPanel').classList.add('hidden');
+    $('stagePanel').classList.remove('hidden');
+    renderPoints();
+    if (listening) startRecognizer(); else $('transcript').focus();
+    clearInterval(timer);
+    timer = setInterval(tick, TICK_MS);
+  }
+  function stop() {
+    listening = false;
+    try { recognizer?.stop(); } catch {}
+    $('mic').textContent = 'Resume mic';
+    update();
+  }
+
+  $('start').onclick = () => begin(true);
+  $('startTyping').onclick = () => begin(false);
+  $('mic').onclick = () => {
+    if (listening) return stop();
+    listening = true; $('mic').textContent = 'Pause mic';
+    try { recognizer.start(); } catch {}
+    update();
+  };
+  $('reset').onclick = () => { stop(); begin(!typing); };
+  $('edit').onclick = () => {
+    stop(); clearInterval(timer);
+    $('stagePanel').classList.add('hidden');
+    $('setupPanel').classList.remove('hidden');
+  };
+</script>
+</body>
+</html>
