@@ -22,7 +22,7 @@ const jev = makeJev({ provider, key: process.env[provider === 'typesafe' ? 'TYPE
 
 const arg = (name, fallback) => process.argv.find((a) => a.startsWith(`--${name}=`))?.slice(name.length + 3) ?? fallback;
 const every = Number(arg('every', 15));
-const threshold = Number(arg('threshold', 1));
+const threshold = Number(arg('threshold', 1.5));
 const read = (path) => readFileSync(new URL(path, `file://${process.cwd()}/`), 'utf8');
 const transcript = arg('transcript') ? read(arg('transcript')) : readFileSync(new URL('examples/show-opening-talk.txt', import.meta.url), 'utf8');
 const points = parsePoints(arg('points') ? read(arg('points')) : readFileSync(new URL('examples/show-opening-points.txt', import.meta.url), 'utf8'));

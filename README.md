@@ -39,10 +39,10 @@ questions: {
 Jev returns a `score` from 0 to 3 for each point: the probability-weighted
 level, so it can fall between levels. The code owns the rules:
 
-- A point is **checked off when its score reaches the threshold** (1.0 by
-  default, adjustable on the page from 0.5 to 2.5). Allie's version also uses
-  a low threshold: the goal is to remind you to mention a point, not to grade
-  how well you covered it.
+- A point is **checked off when its score reaches the threshold** (1.5 by
+  default: between "mentioned" and "discussed"; adjustable on the page from
+  0.5 to 2.5). At 1.0, a passing mention was enough to check a point off, for
+  example saying "performers" before saying anything about tipping them.
 - **Order does not matter**, because every open point is scored on every call.
 - **Checked points stay checked** and are no longer sent. You can also click a
   point to check or uncheck it yourself.
@@ -103,7 +103,7 @@ This feeds a transcript to Jev 15 words at a time, as live speech would
 arrive, and prints when each point is checked off. It uses `TYPESAFE_API_KEY`
 if it is set, and `OPENROUTER_API_KEY` otherwise.
 
-## Results (2026-09-18, OpenRouter, `typesafe/jev-1.13`)
+## Results (2026-09-19, OpenRouter, `typesafe/jev-1.13`, threshold 1.5)
 
 `npm run replay` on the example show opening (383 words, 7 points). The talk
 covers the points in a different order from the list and never mentions the
@@ -111,18 +111,18 @@ bar:
 
 | Point | Checked at word | Score |
 | --- | ---: | ---: |
-| Welcome everyone and introduce yourself as the host | 30 | 1.87 |
-| Where the emergency exits are | 120 | 1.84 |
-| Phones on silent, no flash photography | 165 | 1.69 |
-| Tip the performers, and bring cash | 240 | 1.34 |
-| Thank the theater and the staff | 300 | 1.44 |
-| Introduce the first performer | 345 | 1.35 |
-| The bar is open during intermission | never | best 0.02 |
+| Welcome everyone and introduce yourself as the host | 30 | 1.97 |
+| Where the emergency exits are | 120 | 1.80 |
+| Phones on silent, no flash photography | 165 | 1.70 |
+| Tip the performers, and bring cash | 255 | 2.38 |
+| Thank the theater and the staff | 315 | 2.00 |
+| Introduce the first performer | 360 | 1.91 |
+| The bar is open during intermission | never | best 0.03 |
 
-This took 26 calls averaging 269 ms and cost $0.0011 in total. On a longer
-recorded talk (1,581 words, 7 points), all 6 points covered were checked off
-within 15 words of being said, and the point never mentioned peaked at 0.26.
-That run took 106 calls averaging 245 ms, for $0.0073 in total.
+This took 26 calls averaging 236 ms and cost $0.0011 in total. On a longer
+recorded talk (1,581 words, 7 points), all 6 points covered were checked off,
+and the point never mentioned peaked at 0.23. That run took 106 calls
+averaging 252 ms, for $0.0074 in total.
 
 ## License
 
