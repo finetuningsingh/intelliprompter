@@ -76,10 +76,23 @@ server in `server.js`. The server serves the page and passes the page's
 TypeSafe requests on to the API. OpenRouter calls always go straight from your
 browser to openrouter.ai.
 
-A key you paste stays in the tab (session storage), or in local storage if you
-tick "Remember on this device". "Forget key" removes it. With the local
-server, you can instead put `TYPESAFE_API_KEY` in `.env`. The page then needs
-no key and never sees it.
+### Your key stays in your browser
+
+- **Stored only in your browser.** A key you paste is kept in the tab (session
+  storage) and cleared when you close it. If you tick "Remember on this device",
+  it goes in local storage instead, until you press "Forget key".
+- **Sent only to the service that bills it.** An OpenRouter key goes from the
+  browser straight to openrouter.ai. A TypeSafe key goes to `server.js` on your
+  own computer, which passes it on to api.typesafe.ai and doesn't store or log
+  it. With the local server you can also put `TYPESAFE_API_KEY` in `.env`, and
+  then the page never sees a key at all.
+- **No server of ours.** The hosted page is two static files on GitHub Pages,
+  with no backend, no analytics and no third-party scripts. You can check this
+  in your browser's developer tools (Network tab) or by reading `index.html`
+  and `prompter.js`.
+
+Each request also carries your transcript to the same service. In Chrome,
+speech recognition sends your microphone audio to Google.
 
 ## Run locally
 

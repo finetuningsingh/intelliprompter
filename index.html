@@ -43,6 +43,13 @@
   .hidden { display: none; }
   input[type="range"] { width: 160px; accent-color: var(--accent); }
 
+  .keysafe { margin-top: 14px; padding: 12px 14px; border-radius: 10px; background: var(--bg); border: 1px solid var(--line); }
+  .keysafe h2 { display: flex; align-items: center; gap: 6px; font-size: 15px; margin: 0 0 6px; }
+  .keysafe h2 svg { fill: none; stroke: var(--done); stroke-width: 2.2; stroke-linecap: round; flex: none; }
+  .keysafe ul { margin: 0; padding-left: 18px; font-size: 14px; }
+  .keysafe li + li { margin-top: 6px; }
+  .keysafe a { color: var(--accent); }
+
   #points { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
   #points li { display: grid; grid-template-columns: 34px 1fr; gap: 4px 12px; align-items: center; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line); cursor: pointer; transition: opacity .3s, background .3s; }
   #points li .box { grid-row: span 2; width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--muted); display: grid; place-items: center; font-size: 16px; color: transparent; }
@@ -98,13 +105,31 @@
       <button class="primary" id="saveKey">Use this key</button>
       <span class="check"><input type="checkbox" id="remember"><label for="remember" style="margin:0">Remember on this device</label></span>
     </div>
-    <p class="note">
-      An OpenRouter key (it starts with <code>sk-or-</code>) goes from your browser straight to openrouter.ai.
-      A TypeSafe key only works when the page is run locally with <code>npm start</code>, because api.typesafe.ai
-      does not accept calls from browsers; the local server passes them on. Without "remember", the key is kept only
-      until you close this tab. With OpenRouter, a 5-minute talk with 7 points costs at most about $0.04.
-    </p>
     <p class="error hidden" id="keyError"></p>
+
+    <div class="keysafe">
+      <h2><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Your key stays in your browser</h2>
+      <ul>
+        <li><b>Stored only in this browser.</b> It is kept for this tab and cleared when you close it. Tick
+          "Remember on this device" to keep it until you press Forget key; do that only on a computer you trust.</li>
+        <li><b>Sent only to the service that bills it.</b> An OpenRouter key (it starts with <code>sk-or-</code>) goes
+          from your browser straight to openrouter.ai. A TypeSafe key goes to the small server you run on your own
+          computer with <code>npm start</code>, which passes it on to api.typesafe.ai. That API does not accept calls
+          from web pages, so TypeSafe keys don't work on this hosted page.</li>
+        <li><b>No server of ours in between.</b> This site is two static files on GitHub Pages, with no backend, no
+          analytics and no third-party scripts. The key is sent nowhere else.</li>
+      </ul>
+      <p class="note">
+        To check it, open your browser's developer tools, go to the Network tab, and see where each request goes. Or
+        read the <a href="https://github.com/finetuningsingh/intelliprompter">source</a>: one HTML file and one
+        JavaScript file. To be safer still, make a separate key with a spending limit for this page.
+      </p>
+      <p class="note">
+        Your key isn't the only thing that leaves the browser: each request also carries your transcript to the same
+        service. In Chrome, speech recognition sends your microphone audio to Google. With OpenRouter, a 5-minute
+        talk with 7 points costs at most about $0.04.
+      </p>
+    </div>
   </section>
 
   <section class="panel hidden" id="setupPanel">
