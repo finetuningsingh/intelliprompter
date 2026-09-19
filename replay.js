@@ -10,7 +10,7 @@ import { makeJev, scorePoints, parsePoints, PROVIDERS } from './prompter.js';
 try {
   for (const line of readFileSync(new URL('.env', import.meta.url), 'utf8').split('\n')) {
     const m = line.match(/^\s*([A-Z_]+)\s*=\s*(.*?)\s*$/);
-    if (m && m[2] && !process.env[m[1]]) process.env[m[1]] = m[2];
+    if (m && m[2] && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^(['"])(.*)\1$/, '$2');
   }
 } catch {}
 const provider = process.env.TYPESAFE_API_KEY ? 'typesafe' : process.env.OPENROUTER_API_KEY ? 'openrouter' : null;

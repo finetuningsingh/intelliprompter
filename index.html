@@ -108,9 +108,9 @@
     <p class="error hidden" id="keyError"></p>
 
     <div class="keysafe">
-      <h2><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Your key stays in your browser</h2>
+      <h2><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Your key is stored only in your browser</h2>
       <ul>
-        <li><b>Stored only in this browser.</b> It is kept for this tab and cleared when you close it. Tick
+        <li><b>Kept for this tab.</b> It is cleared when you close the tab. Tick
           "Remember on this device" to keep it until you press Forget key; do that only on a computer you trust.</li>
         <li><b>Sent only to the service that bills it.</b> An OpenRouter key (it starts with <code>sk-or-</code>) goes
           from your browser straight to openrouter.ai. A TypeSafe key goes to the small server you run on your own
@@ -219,7 +219,7 @@ Introduce the first performer</textarea>
     </table>
     <p>The <b>score</b> is the probability-weighted average of the levels, so it can fall between them:</p>
 <pre>score = 0×0.00 + 1×0.12 + 2×0.83 + 3×0.05 = 1.93</pre>
-    <p><b>Confidence</b> (83% here) measures how much the probability is concentrated on one level. It does not say
+    <p><b>Confidence</b> (0 to 1) measures how much the probability is concentrated on one level. It does not say
       whether the point was covered, so this page ignores it.</p>
 
     <h3>3. What the page does with it</h3>
@@ -243,7 +243,7 @@ Introduce the first performer</textarea>
 </main>
 
 <script type="module">
-  import { scorePoints, parsePoints, makeJev, providerFor, PROVIDERS } from './prompter.js?v=2';
+  import { scorePoints, parsePoints, makeJev, providerFor, PROVIDERS } from './prompter.js?v=3';
 
   const TICK_MS = 500;
   const STORE = 'jev_api_key';
@@ -254,6 +254,7 @@ Introduce the first performer</textarea>
   let finalText = '', interimText = '', sentText = '', inFlight = false, timer = null;
   let recognizer = null, listening = false, typing = false;
   let calls = 0, cost = 0, costKnown = true, lastMs = 0;
+  let usingServerKey = false, retryAt = 0, errorDelay = 0;
 
   // server.js answers this; on GitHub Pages it 404s, so there is no relay and TypeSafe keys can't be used.
   const config = await fetch('api/config').then((r) => (r.ok ? r.json() : {})).catch(() => ({}));
@@ -269,6 +270,7 @@ Introduce the first performer</textarea>
       const t0 = performance.now();
       try { return await call(...args); } finally { lastMs = Math.round(performance.now() - t0); }
     };
+    usingServerKey = !key;
     $('keyNote').textContent = key ? `Using your ${PROVIDERS[provider].name} key.` : 'Using the TypeSafe key from the local server\'s .env.';
     $('forgetKey').classList.toggle('hidden', !key);
     $('keyPanel').classList.add('hidden');
@@ -384,7 +386,7 @@ Introduce the first performer</textarea>
 
   // One request at a time, sent only when the transcript has changed; that keeps answers in order.
   async function tick() {
-    if (inFlight || !jev) return;
+    if (inFlight || !jev || performance.now() < retryAt) return;
     const text = typing ? $('transcript').innerText.trim() : fullText();
     if (!text || text === sentText) return;
     const open = points.filter((p) => !state[p.id].done);
@@ -393,6 +395,7 @@ Introduce the first performer</textarea>
     try {
       const r = await scorePoints(jev, text, open);
       calls++; if (r.cost == null) costKnown = false; else cost += r.cost;
+      retryAt = errorDelay = 0;
       $('error').classList.add('hidden');
       for (const p of open) {
         const a = r.scores[p.id], s = state[p.id];
@@ -401,9 +404,19 @@ Introduce the first performer</textarea>
         if (a.score >= threshold()) s.done = true;
       }
     } catch (e) {
-      $('error').textContent = e.message; $('error').classList.remove('hidden');
-      if (/\(401\)/.test(e.message)) { stop(); $('error').textContent += ' Use Edit points, then Forget key, to enter another.'; }
       sentText = '';
+      let hint;
+      if (/\(401\)/.test(e.message)) {
+        // A rejected key stays rejected, so stop sending it.
+        stop(); clearInterval(timer);
+        hint = usingServerKey ? 'Fix TYPESAFE_API_KEY in .env, restart the server and reload.' : 'Use Edit points, then Forget key, to enter another.';
+      } else {
+        // prompter.js already retried; wait longer after each further failure (2 s, 4 s, … up to 30 s).
+        errorDelay = Math.min(errorDelay ? errorDelay * 2 : 2000, 30_000);
+        retryAt = performance.now() + errorDelay;
+        hint = `Trying again in ${errorDelay / 1000} s.`;
+      }
+      $('error').textContent = `${e.message} ${hint}`; $('error').classList.remove('hidden');
     } finally {
       inFlight = false; update();
     }
@@ -444,6 +457,8 @@ Introduce the first performer</textarea>
     try { localStorage.setItem('intelliprompter_points', $('pointsInput').value); } catch {}
     state = Object.fromEntries(points.map((p) => [p.id, { score: 0, confidence: 0, probabilities: null, seen: false, done: false }]));
     finalText = interimText = sentText = '';
+    retryAt = errorDelay = 0;
+    $('error').classList.add('hidden');
     typing = !withMic || !Recognition;
     listening = !typing;
     $('transcript').contentEditable = typing ? 'plaintext-only' : 'false';

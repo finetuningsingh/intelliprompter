@@ -68,7 +68,7 @@ Jev is available two ways, with the same questions and answers:
 | Key | Endpoint | Works on the hosted page | Works locally |
 | --- | --- | --- | --- |
 | OpenRouter (`sk-or-…`) | `openrouter.ai/api/alpha/decisions`, model `typesafe/jev-1.13` | yes | yes |
-| TypeSafe | `api.typesafe.ai/v1/systemone`, model `jev-latest` | no | yes |
+| TypeSafe | `api.typesafe.ai/v1/systemone`, model `jev-1.13.0` | no | yes |
 
 The page tells the two apart by the `sk-or-` prefix. api.typesafe.ai does not
 accept calls from web pages (CORS), so a TypeSafe key needs the small local
@@ -76,7 +76,15 @@ server in `server.js`. The server serves the page and passes the page's
 TypeSafe requests on to the API. OpenRouter calls always go straight from your
 browser to openrouter.ai.
 
-### Your key stays in your browser
+Both paths are pinned to Jev 1.13, the version the 1.5 threshold was tuned on;
+TypeSafe's docs advise pinning a version rather than the moving `jev-latest`
+alias once thresholds are tuned. Requests follow TypeSafe's SDK defaults: a
+10-second timeout, and up to two retries with backoff (honoring `Retry-After`)
+on timeouts, 408, 429, 529 and other server errors. After further failures the
+page waits longer each time, up to 30 seconds. A rejected key (401) stops the
+requests.
+
+### Your key is stored only in your browser
 
 - **Stored only in your browser.** A key you paste is kept in the tab (session
   storage) and cleared when you close it. If you tick "Remember on this device",
@@ -85,7 +93,8 @@ browser to openrouter.ai.
   browser straight to openrouter.ai. A TypeSafe key goes to `server.js` on your
   own computer, which passes it on to api.typesafe.ai and doesn't store or log
   it. With the local server you can also put `TYPESAFE_API_KEY` in `.env`, and
-  then the page never sees a key at all.
+  then the page never sees a key at all. The server only relays requests from
+  its own page, so other websites open in your browser can't spend that key.
 - **No server of ours.** The hosted page is two static files on GitHub Pages,
   with no backend, no analytics and no third-party scripts. You can check this
   in your browser's developer tools (Network tab) or by reading `index.html`
